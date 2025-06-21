@@ -6,6 +6,7 @@ use std::io::{self};
 
 mod build;
 mod query;
+mod trie;
 
 #[derive(Parser)]
 #[command(name = "nword")]

@@ -1,7 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 use tracing::{debug, info};
+
+use crate::trie::{TrieNode,NgramIndex};
 
 #[derive(Debug)]
 pub struct Options {
@@ -11,83 +13,6 @@ pub struct Options {
     pub freq_min: u32,
     // how many recursions we make
     pub max_depth: u32,
-}
-
-pub trait NgramIndex {
-    fn insert(&mut self, ngram: &str, freq: u32);
-    fn lookup(&self, prefix: &str) -> Vec<(String, u32)>;
-}
-
-pub struct TrieNode {
-    children: HashMap<String, TrieNode>,
-    freq: u32,
-}
-
-impl Default for TrieNode {
-    fn default() -> Self {
-        TrieNode {
-            children: HashMap::default(),
-            freq: 0,
-        }
-    }
-}
-
-impl TrieNode {
-    fn collect_all(&self, prefix: &str, results: &mut Vec<(String, u32)>) {
-        results.push((prefix.to_string(), self.freq));
-        for (word, child) in &self.children {
-            debug!("prefix: '{}'\tchild: '{}'", prefix, word);
-            let new_prefix = if prefix.is_empty() {
-                word.clone()
-            } else {
-                format!("{} {}", prefix, word)
-            };
-            child.collect_all(&new_prefix, results);
-        }
-    }
-    fn from_it<I: Iterator<Item = String>>(it: I, freq_min: u32) -> TrieNode {
-        info!("Load ngrams");
-        let mut i = 0;
-        let mut trie = TrieNode::default();
-        for line in it {
-            let (ngram, _freq) = line
-                .split_once('\t')
-                .expect("ngram line missing tab separator");
-            let freq: u32 = _freq.parse().expect("Bad freq");
-            if freq < freq_min {
-                // ngrams are sorted by frequency, so we're done here.
-                break;
-            }
-            trie.insert(ngram, freq);
-            i += 1;
-        }
-        info!("Loaded {} grams", i);
-        trie
-    }
-}
-
-impl NgramIndex for TrieNode {
-    fn insert(&mut self, ngram: &str, freq: u32) {
-        let mut node = self;
-        for word in ngram.split_whitespace() {
-            node = node.children.entry(word.to_string()).or_default();
-        }
-        // The leaf node gets the frequency
-        node.freq = freq;
-    }
-
-    fn lookup(&self, prefix: &str) -> Vec<(String, u32)> {
-        let mut node = self;
-        for word in prefix.split_whitespace() {
-            match node.children.get(word) {
-                Some(next) => node = next,
-                None => return vec![],
-            }
-        }
-        let mut results = vec![];
-        node.collect_all(&prefix, &mut results);
-        results[1..].to_vec()
-    }
 }
 
 pub struct NgramStream<'a> {
@@ -183,7 +108,7 @@ pub fn run(data_dir: &str, opts: Options) -> io::Result<()> {
     };
     let ngram3_suffix = if opts.suffix_mode {
         // we can give a suffix and it finds possible prefixes for it instead.
-        let suffix_mode_transform = |x: String| {
+        let suffix_mode_transform = |x: String| -> String {
             let mut words: Vec<&str> = x.split_whitespace().collect();
             let len = words.len();
             words[..len - 1].reverse();

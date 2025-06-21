@@ -1,0 +1,15 @@
+[package]
+name = "nword"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "nword"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }
+rayon = "1.8"
+regex = "1.10"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

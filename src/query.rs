@@ -55,6 +55,7 @@ impl TrieNode {
                 .expect("ngram line missing tab separator");
             let freq: u32 = _freq.parse().expect("Bad freq");
             if freq < freq_min {
+                // ngrams are sorted by frequency, so we're done here.
                 break;
             }
             trie.insert(ngram, freq);
@@ -107,9 +108,8 @@ impl<'a> NgramStream<'a> {
     }
 }
 
-impl<'a> Iterator for NgramStream<'a> {
+impl Iterator for NgramStream<'_> {
     type Item = String;
-
     fn next(&mut self) -> Option<Self::Item> {
         while self.pending.is_empty() {
             if self.queue.is_empty() {
@@ -138,7 +138,7 @@ impl<'a> Iterator for NgramStream<'a> {
 
 fn stream_ngrams<'a>(
     trie: &'a TrieNode,
-    seed: &'a String,
+    seed: &str,
     max_depth: u32,
 ) -> Box<dyn Iterator<Item = String> + 'a> {
     if seed.split(" ").count() >= 2 {
@@ -161,7 +161,7 @@ fn stream_ngrams<'a>(
         Box::new(
             seeds
                 .into_iter()
-                .flat_map(move |good_seed: String| NgramStream::new(&trie, good_seed, max_depth)),
+                .flat_map(move |good_seed: String| NgramStream::new(trie, good_seed, max_depth)),
         )
     }
 }

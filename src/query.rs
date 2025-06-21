@@ -133,7 +133,9 @@ pub fn run(data_dir: &str, opts: Options) -> io::Result<()> {
             total += 1;
             writeln!(io::stdout(), "{}", ngram)?;
         }
-        for ngram in stream_ngrams(&ngram3_suffix, &query, opts.max_depth) {
+
+        let reverse_query = query.split_whitespace().rev().collect::<Vec<&str>>().join(" ");
+        for ngram in stream_ngrams(&ngram3_suffix, &reverse_query, opts.max_depth) {
             total += 1;
             writeln!(
                 io::stdout(),

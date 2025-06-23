@@ -13,3 +13,4 @@ rayon = "1.8"
 regex = "1.10"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+atty = "0.2"

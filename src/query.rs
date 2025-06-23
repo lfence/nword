@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use tracing::{debug, info};
+use atty::Stream;
 
 use crate::trie::{TrieNode,NgramIndex};
 
@@ -133,6 +134,16 @@ pub fn run(data_dir: &str, opts: Options) -> io::Result<()> {
 
     let input = io::stdin().lock();
     let mut total: u64 = 0;
+
+    let stdout = io::stdout().lock();
+
+    let mut writer: Box<dyn Write> = if atty::is(Stream::Stdout) {
+        info!("line-buffered");
+        Box::new(stdout) // line-buffered by default
+    } else {
+        info!("buf-buffered");
+        Box::new(BufWriter::with_capacity(10<<20, stdout))
+    };
     for seed in input.lines().flatten() {
         let query = seed.trim().to_lowercase();
         if query.is_empty() {
@@ -140,14 +151,14 @@ pub fn run(data_dir: &str, opts: Options) -> io::Result<()> {
         }
         for ngram in stream_ngrams(&ngram3, &query, opts.max_depth) {
             total += 1;
-            writeln!(io::stdout(), "{}", ngram)?;
+            writeln!(writer, "{}", ngram)?;
         }
 
         let reverse_query = query.split_whitespace().rev().collect::<Vec<&str>>().join(" ");
         for ngram in stream_ngrams(&ngram3_suffix, &reverse_query, opts.max_depth) {
             total += 1;
             writeln!(
-                io::stdout(),
+                writer,
                 "{}",
                 ngram
                     .split_whitespace()
@@ -157,6 +168,7 @@ pub fn run(data_dir: &str, opts: Options) -> io::Result<()> {
             )?;
         }
     }
+    writer.flush()?;
     info!("exhausted after {} ngrams", total);
     Ok(())
 }

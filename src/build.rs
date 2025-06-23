@@ -32,20 +32,21 @@ pub fn run(input_file: &str, output_dir: &str) {
             let file_offset = thread_id * chunk_size;
             const MARGIN_BYTES: usize = 50;
             let total_to_read = chunk_size + MARGIN_BYTES;
-            let end_offset = std::cmp::min(file_offset + total_to_read, file_data.len());
+            let end_offset = std::cmp::min(file_offset + total_to_read, file_size);
             let chunk = &file_data[file_offset..end_offset];
-            let text = String::from_utf8_lossy(chunk);
+            let text = String::from_utf8_lossy(chunk).into_owned();
 
             // clean up opensubtitle tok files
             let re = Regex::new(r"\{\s*[^}]*\}").unwrap(); // Remove any {content}
-            let re2 = Regex::new(r"<[^>]{1,3}>").unwrap(); // Remove any {content}
-            // let re3 = Regex::new(r"^\d\d\d ").unwrap(); // Remove any {content}
+            let re2 = Regex::new(r"<[^>]{1,3}>").unwrap(); // Remove any <content>
             let re3 = Regex::new(r"\d\d\d\w? (\d\d : )+\d\d, \d\d\d\d? -- > (\d\d : )+\d\d, \d\d\d\d? ").unwrap();
 
             let mut t = Instant::now();
-            let tokens: Vec<String> = re3.replace_all(&re2.replace_all(&re.replace_all(&text, ""), ""), "")
-                .to_lowercase()
-                .replace("\n- ", " ")
+            let mut cleaned = re.replace_all(&text, "").into_owned();
+            cleaned = re2.replace_all(&cleaned, "").into_owned();
+            cleaned = re3.replace_all(&cleaned, "").into_owned();
+            cleaned = cleaned.to_lowercase();
+            cleaned = cleaned.replace("\n- ", " ")
                 .replace("\n... ", " ")
                 .replace(" ...\n", " . ")
                 .replace(" ,,,\n", " . ")
@@ -63,9 +64,12 @@ pub fn run(input_file: &str, output_dir: &str) {
                 .replace(" - ", " ")
                 .replace("- ", " ")
                 .replace(" \" ", " ")
-                .replace("' s", "s") // joe' s -> joes
+
+                .replace("' ", "") // joe' s -> joes
+                .replace("' ", ""); // can' t -> cant
+
+            let tokens: Vec<&str> = cleaned
                 .split_whitespace()
-                .map(str::to_string)
                 .collect();
             debug!("[{:02}] Tokenize {:.2}s", thread_id, t.elapsed().as_secs_f64());
             // long tokens, for example "affärsuppgörelse" could be split into two
@@ -80,7 +84,7 @@ pub fn run(input_file: &str, output_dir: &str) {
             for i in NMIN..=NMAX {
                 for window in tokens.windows(i) {
                     // Skip n-grams that contain sentence-ending punctuation
-                    if window.iter().any(|token| [".", "?", "!"].contains(&token.as_str())){
+                    if window.iter().any(|token| [".", "?", "!"].contains(&token)){
                         continue;
                     }
 

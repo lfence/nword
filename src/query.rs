@@ -21,12 +21,11 @@ pub struct NgramStream<'a> {
     pending: Vec<(String, u32)>,
     max_depth: u32,
 }
-
 impl<'a> NgramStream<'a> {
-    fn new(trie: &'a TrieNode, seed: String, max_depth: u32) -> Self {
+    fn new(trie: &'a TrieNode, max_depth: u32) -> Self {
         NgramStream {
             trie,
-            queue: vec![(seed, 0)],
+            queue: vec![],
             pending: vec![],
             max_depth,
         }
@@ -67,7 +66,9 @@ fn stream_ngrams<'a>(
     max_depth: u32,
 ) -> Box<dyn Iterator<Item = String> + 'a> {
     if seed.split(" ").count() >= 2 {
-        Box::new(NgramStream::new(trie, seed.to_string(), max_depth))
+        let mut grams = NgramStream::new(trie, max_depth);
+        grams.queue.push((seed.to_string(), 0));
+        Box::new(grams)
     } else {
         // let prefix = format!("{} ", seed);
         let seeds: Vec<String> = trie
@@ -84,10 +85,18 @@ fn stream_ngrams<'a>(
             .collect();
 
         Box::new(
+            // return all 2grams too
+            seeds.clone().into_iter().chain(
+            // then the 3grams for those
             seeds
                 .into_iter()
-                .flat_map(move |good_seed: String| NgramStream::new(trie, good_seed, max_depth)),
-        )
+                .flat_map(move |good_seed: String| {
+                    // we're already one step down.
+                    let mut grams = NgramStream::new(trie, max_depth);
+                    grams.queue.push((good_seed, 1));
+                    grams
+                }),
+        ))
     }
 }
 
